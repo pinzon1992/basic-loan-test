@@ -7,6 +7,8 @@ using Fundo.Applications.Application.Loans;
 using Fundo.Applications.Application.Loans.Models;
 using Fundo.Applications.Domain.Entities;
 using Fundo.Applications.Infrastructure.Repositories.Loans;
+using Fundo.Applications.Infrastructure.Exceptions;
+using Fundo.Applications.Application.Loans.Models;
 
 namespace Fundo.Services.Tests.Unit.Services
 {
@@ -111,7 +113,7 @@ namespace Fundo.Services.Tests.Unit.Services
                 Status = LoanStatus.Active
             };
 
-            await Assert.ThrowsAsync<ArgumentException>(() => _service.UpdateAsync(dto));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => _service.UpdateAsync(dto));
         }
 
         [Fact]
@@ -171,6 +173,118 @@ namespace Fundo.Services.Tests.Unit.Services
             Assert.False(result);
             _repoMock.Verify(r => r.DeleteAsync(id), Times.Once);
             _repoMock.Verify(r => r.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Throw_When_Amount_Is_NonPositive()
+        {
+            var dto = new LoanDto
+            {
+                Amount = 0m,
+                CurrentBalance = 0m,
+                ApplicantName = "Test",
+                Status = LoanStatus.Active
+            };
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => _service.AddAsync(dto));
+            _repoMock.Verify(r => r.AddAsync(It.IsAny<Loan>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Throw_When_ApplicantName_Is_Empty()
+        {
+            var dto = new LoanDto
+            {
+                Amount = 100m,
+                CurrentBalance = 0m,
+                ApplicantName = "",
+                Status = LoanStatus.Active
+            };
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => _service.AddAsync(dto));
+            _repoMock.Verify(r => r.AddAsync(It.IsAny<Loan>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Throw_When_CurrentBalance_Greater_Than_Amount()
+        {
+            var dto = new LoanDto
+            {
+                Amount = 100m,
+                CurrentBalance = 150m,
+                ApplicantName = "Test",
+                Status = LoanStatus.Active
+            };
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => _service.AddAsync(dto));
+            _repoMock.Verify(r => r.AddAsync(It.IsAny<Loan>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task MakePaymentAsync_Should_Reduce_Balance_And_SaveChanges()
+        {
+            var id = Guid.NewGuid();
+            var existing = new Loan { Id = id, Amount = 1500m, CurrentBalance = 500m, ApplicantName = "Payer", Status = LoanStatus.Active };
+
+            _repoMock.Setup(r => r.GetByIdAsync(id)).ReturnsAsync(existing);
+            _repoMock.Setup(r => r.SaveChangesAsync()).ReturnsAsync(true);
+
+            var req = new PaymentRequest { Amount = 100m };
+
+            var result = await _service.MakePaymentAsync(id, req);
+
+            Assert.NotNull(result);
+            Assert.Equal(400m, result.CurrentBalance);
+            Assert.Equal(LoanStatus.Active, result.Status);
+            _repoMock.Verify(r => r.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task MakePaymentAsync_Should_Set_Status_Paid_When_PaidOff()
+        {
+            var id = Guid.NewGuid();
+            var existing = new Loan { Id = id, Amount = 1000m, CurrentBalance = 100m, ApplicantName = "Payer", Status = LoanStatus.Active };
+
+            _repoMock.Setup(r => r.GetByIdAsync(id)).ReturnsAsync(existing);
+            _repoMock.Setup(r => r.SaveChangesAsync()).ReturnsAsync(true);
+
+            var req = new PaymentRequest { Amount = 100m };
+
+            var result = await _service.MakePaymentAsync(id, req);
+
+            Assert.NotNull(result);
+            Assert.Equal(0m, result.CurrentBalance);
+            Assert.Equal(LoanStatus.Paid, result.Status);
+            _repoMock.Verify(r => r.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task MakePaymentAsync_Should_Throw_When_Loan_NotFound()
+        {
+            var id = Guid.NewGuid();
+            _repoMock.Setup(r => r.GetByIdAsync(id)).ReturnsAsync((Loan?)null);
+
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => _service.MakePaymentAsync(id, new PaymentRequest { Amount = 50m }));
+        }
+
+        [Fact]
+        public async Task MakePaymentAsync_Should_Throw_When_InvalidAmount()
+        {
+            var id = Guid.NewGuid();
+            var existing = new Loan { Id = id, Amount = 500m, CurrentBalance = 200m, ApplicantName = "Payer", Status = LoanStatus.Active };
+            _repoMock.Setup(r => r.GetByIdAsync(id)).ReturnsAsync(existing);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => _service.MakePaymentAsync(id, new PaymentRequest { Amount = 0m }));
+        }
+
+        [Fact]
+        public async Task MakePaymentAsync_Should_Throw_When_Amount_Exceeds_Balance()
+        {
+            var id = Guid.NewGuid();
+            var existing = new Loan { Id = id, Amount = 500m, CurrentBalance = 50m, ApplicantName = "Payer", Status = LoanStatus.Active };
+            _repoMock.Setup(r => r.GetByIdAsync(id)).ReturnsAsync(existing);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => _service.MakePaymentAsync(id, new PaymentRequest { Amount = 100m }));
         }
     }
 }
