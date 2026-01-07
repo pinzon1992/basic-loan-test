@@ -1,0 +1,29 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql-server
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "Password123!"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1434:1434"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", " /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"Password123!\" -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  fundo.applications.webapi:
+    image: ${DOCKER_REGISTRY-}fundoapplicationswebapi
+    depends_on:
+      - sqlserver
+    environment:
+      - Database__ConnectionString=Server=sqlserver,1434;Database=FundoLoansDb;User=sa;Password=Password123!;TrustServerCertificate=True
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    build:
+      context: .
+      dockerfile: Fundo.Applications.WebApi/Dockerfile

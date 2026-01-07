@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Mapster" Version="7.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Fundo.Applications.Domain\Fundo.Applications.Domain.csproj" />
+    <ProjectReference Include="..\Fundo.Applications.Infrastructure\Fundo.Applications.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
