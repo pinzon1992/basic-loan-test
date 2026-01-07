@@ -12,11 +12,11 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel endpoints explicitly
+// Configure Kestrel endpoints explicitly (listen on any IP for container networking)
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenLocalhost(5000);
-    options.ListenLocalhost(5001, listenOptions => listenOptions.UseHttps());
+    options.ListenAnyIP(5000);
+    options.ListenAnyIP(5001, listenOptions => listenOptions.UseHttps());
 });
 
 // Services
